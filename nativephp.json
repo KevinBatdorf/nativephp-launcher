@@ -1,0 +1,65 @@
+{
+    "namespace": "Launcher",
+    "bridge_functions": [
+        {
+            "name": "Launcher.Apps",
+            "android": "com.kevinbatdorf.plugins.launcher.LauncherFunctions.Apps",
+            "ios": "LauncherFunctions.Apps",
+            "description": "Every launchable app on the device with its label, package and an icon file",
+            "android_params": [
+                "activity"
+            ]
+        },
+        {
+            "name": "Launcher.Open",
+            "android": "com.kevinbatdorf.plugins.launcher.LauncherFunctions.Open",
+            "ios": "LauncherFunctions.Open",
+            "description": "Open an app by package, optionally on a given display",
+            "android_params": [
+                "activity"
+            ]
+        },
+        {
+            "name": "Launcher.IsDefaultHome",
+            "android": "com.kevinbatdorf.plugins.launcher.LauncherFunctions.IsDefaultHome",
+            "ios": "LauncherFunctions.IsDefaultHome",
+            "description": "Whether this app is the device's default home screen",
+            "android_params": [
+                "activity"
+            ]
+        },
+        {
+            "name": "Launcher.OpenHomeSettings",
+            "android": "com.kevinbatdorf.plugins.launcher.LauncherFunctions.OpenHomeSettings",
+            "ios": "LauncherFunctions.OpenHomeSettings",
+            "description": "Open the system screen where the user picks the default home app",
+            "android_params": [
+                "activity"
+            ]
+        }
+    ],
+    "events": [
+        "KevinBatdorf\\Launcher\\Events\\HomeRequested"
+    ],
+    "android": {
+        "permissions": [
+            "android.permission.QUERY_ALL_PACKAGES"
+        ],
+        "min_version": 30,
+        "dependencies": {
+            "implementation": []
+        },
+        "init_function": "com.kevinbatdorf.plugins.launcher.registerLauncher"
+    },
+    "ios": {
+        "info_plist": {},
+        "min_version": "15.0",
+        "dependencies": {
+            "swift_packages": [],
+            "pods": []
+        }
+    },
+    "hooks": {
+        "copy_assets": "nativephp:launcher:copy-assets"
+    }
+}

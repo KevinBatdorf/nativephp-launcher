@@ -1,0 +1,42 @@
+{
+    "name": "kevinbatdorf/nativephp-launcher",
+    "description": "Make a NativePHP Mobile app the Android home screen: list installed apps, open one on a display, and answer the HOME intent",
+    "type": "nativephp-plugin",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Kevin Batdorf",
+            "email": "kevin@kevinbatdorf.com"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "nativephp/mobile": "^4.0"
+    },
+    "require-dev": {
+        "pestphp/pest": "^3.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "KevinBatdorf\\Launcher\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "KevinBatdorf\\Launcher\\LauncherServiceProvider"
+            ]
+        },
+        "nativephp": {
+            "manifest": "nativephp.json"
+        }
+    },
+    "scripts": {
+        "test": "pest"
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    }
+}
