@@ -50,7 +50,7 @@ describe('Plugin Manifest', function () {
         $secondary = $this->xml->xpath('//activity[@android:name="com.kevinbatdorf.plugins.launcher.LauncherSecondaryHomeActivity"]')[0];
         $categories = array_map(fn ($c) => attr($c, 'name'), iterator_to_array($secondary->{'intent-filter'}->category, false));
 
-        expect(attr($secondary, 'taskAffinity'))->toBe('com.kevinbatdorf.plugins.launcher.secondary')
+        expect(attr($secondary, 'taskAffinity'))->toBe('${applicationId}.launcher.secondary')
             ->and(attr($secondary, 'exported'))->toBe('true')
             ->and(attr($secondary, 'launchMode'))->toBe('singleTop')
             ->and($categories)->toContain('android.intent.category.SECONDARY_HOME', 'android.intent.category.DEFAULT');
@@ -104,12 +104,18 @@ describe('Native Code', function () {
     it('makes every other display resident with our home as soon as the main one is', function () {
         expect($this->kotlin)->toContain('if (displayId == Display.DEFAULT_DISPLAY) ensureSiblingHomes()')
             ->and($this->kotlin)->toContain('addCategory(Intent.CATEGORY_SECONDARY_HOME)')
-            ->and($this->kotlin)->toContain('display.displayId in LauncherApp.homes');
+            ->and($this->kotlin)->toContain('display.displayId in LauncherApp.homes')
+            ->and($this->kotlin)->toContain('if (display.flags and Display.FLAG_PRIVATE != 0) continue');
+    });
+
+    it('draws one icon per entry point and redraws it after the app updates', function () {
+        expect($this->kotlin)->toContain('File(dir, "$pkg.${info.activityInfo.name}.png")')
+            ->and($this->kotlin)->toContain('file.lastModified() >= updatedAt');
     });
 
     it('removes app tasks outside the home task and waits for a dying instance before booting again', function () {
-        expect($this->kotlin)->toContain('strays.forEach { runCatching { it.finishAndRemoveTask() } }')
-            ->and($this->kotlin)->toContain('app.isFinishing || strays.any { it.taskInfo.taskId == app.taskId } ->');
+        expect($this->kotlin)->toContain('?.also { runCatching { task.finishAndRemoveTask() } }')
+            ->and($this->kotlin)->toContain('app.isFinishing || app.taskId in strays ->');
     });
 
     it('tells PHP which display wants home, matching the event class', function () {

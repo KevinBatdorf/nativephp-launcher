@@ -24,16 +24,18 @@ open class LauncherHomeActivity : Activity() {
 
     private var resumed = false
 
+    private var homeDisplay = Display.DEFAULT_DISPLAY
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        LauncherApp.homes.add(displayId)
-        Log.d(TAG, "resident on d$displayId")
+        homeDisplay = displayId
+        LauncherApp.homes.add(homeDisplay)
+        Log.d(TAG, "resident on d$homeDisplay")
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        if (isFinishing || !isTaskRoot) return
-        LauncherApp.homes.remove(displayId)
+        if (isTaskRoot) LauncherApp.homes.remove(homeDisplay)
     }
 
     override fun onResume() {
@@ -53,13 +55,12 @@ open class LauncherHomeActivity : Activity() {
         val app = LauncherApp.live()
 
         // Recents never lists home tasks: anything listed here is a swipeable card started from outside.
-        val strays = appTasks().filter { it.taskInfo.baseIntent.component?.className == MAIN_ACTIVITY }
-        strays.forEach { runCatching { it.finishAndRemoveTask() } }
+        val strays = strayTaskIds()
 
         when {
             app == null -> boot()
             // Let a dying instance finish first: two app instances at once break the runtime.
-            app.isFinishing || strays.any { it.taskInfo.taskId == app.taskId } ->
+            app.isFinishing || app.taskId in strays ->
                 handler.postDelayed({ if (resumed) requestHome() }, RETRY_MS)
             else -> {
                 if (app.display?.displayId == displayId) bringForward()
@@ -79,6 +80,7 @@ open class LauncherHomeActivity : Activity() {
 
         for (display in displays) {
             if (display.displayId == Display.DEFAULT_DISPLAY || display.displayId in LauncherApp.homes) continue
+            if (display.flags and Display.FLAG_PRIVATE != 0) continue
 
             val options = ActivityOptions.makeBasic().apply { launchDisplayId = display.displayId }
             val intent = Intent(Intent.ACTION_MAIN).apply {
@@ -95,8 +97,17 @@ open class LauncherHomeActivity : Activity() {
     private val displayId: Int
         get() = display?.displayId ?: Display.DEFAULT_DISPLAY
 
-    private fun appTasks(): List<ActivityManager.AppTask> =
-        (getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).appTasks
+    private fun strayTaskIds(): Set<Int> {
+        val tasks = (getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).appTasks
+
+        return tasks.mapNotNull { task ->
+            // A task can vanish between the listing and the lookup.
+            runCatching { task.taskInfo }.getOrNull()
+                ?.takeIf { it.baseIntent.component?.className == MAIN_ACTIVITY }
+                ?.also { runCatching { task.finishAndRemoveTask() } }
+                ?.taskId
+        }.toSet()
+    }
 
     private fun bringForward() {
         startActivity(mainIntent().addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))

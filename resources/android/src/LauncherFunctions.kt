@@ -40,11 +40,12 @@ object LauncherFunctions {
                 .filter { it.activityInfo.packageName != activity.packageName }
                 .map { info ->
                     val pkg = info.activityInfo.packageName
+                    val updatedAt = runCatching { pm.getPackageInfo(pkg, 0).lastUpdateTime }.getOrDefault(0L)
                     mapOf(
                         "label" to info.loadLabel(pm).toString(),
                         "package" to pkg,
                         "activity" to info.activityInfo.name,
-                        "icon" to iconPath(iconDir, pkg, info, pm),
+                        "icon" to iconPath(iconDir, info, pm, updatedAt),
                     )
                 }
                 .sortedBy { (it["label"] as String).lowercase() }
@@ -52,9 +53,11 @@ object LauncherFunctions {
             return BridgeResponse.success(mapOf("apps" to apps))
         }
 
-        private fun iconPath(dir: File, pkg: String, info: ResolveInfo, pm: PackageManager): String {
-            val file = File(dir, "$pkg.png")
-            if (file.exists()) return file.absolutePath
+        private fun iconPath(dir: File, info: ResolveInfo, pm: PackageManager, updatedAt: Long): String {
+            val pkg = info.activityInfo.packageName
+            // Entry points of one package can carry different icons, and an update changes them.
+            val file = File(dir, "$pkg.${info.activityInfo.name}.png")
+            if (file.exists() && file.lastModified() >= updatedAt) return file.absolutePath
 
             return runCatching {
                 file.outputStream().use { toBitmap(info.loadIcon(pm)).compress(Bitmap.CompressFormat.PNG, 100, it) }

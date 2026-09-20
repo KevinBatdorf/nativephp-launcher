@@ -17,7 +17,7 @@
             android:name="com.kevinbatdorf.plugins.launcher.LauncherSecondaryHomeActivity"
             android:exported="true"
             android:launchMode="singleTop"
-            android:taskAffinity="com.kevinbatdorf.plugins.launcher.secondary"
+            android:taskAffinity="${applicationId}.launcher.secondary"
             android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

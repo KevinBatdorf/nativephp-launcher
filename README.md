@@ -11,7 +11,7 @@ composer require kevinbatdorf/nativephp-launcher
 php artisan native:plugin:register kevinbatdorf/nativephp-launcher
 ```
 
-Requires NativePHP Mobile v4 and Android 11+. Installing it makes your app show up in Android's home-app picker; only the user can pick it (Settings → Apps → Default apps → Home app), and `Launcher::openHomeSettings()` takes them there.
+Requires NativePHP Mobile 4.5+ and Android 11+. Installing it makes your app show up in Android's home-app picker; only the user can pick it (Settings → Apps → Default apps → Home app), and `Launcher::openHomeSettings()` takes them there.
 
 ## A home screen in one screen
 
