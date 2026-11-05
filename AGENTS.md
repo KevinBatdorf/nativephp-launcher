@@ -8,8 +8,9 @@ apps against it. The README is the short human pitch; this file is the docs.
 A NativePHP Mobile (v4 / EDGE) plugin that lets a Laravel mobile app be
 Android's home screen: the HOME and SECONDARY_HOME activities Android looks
 for, the facts a home screen needs (installed apps, who is the default
-home), the verbs (open an app on a display, open the home-app settings),
-and one event (`HomeRequested`). What the home screen looks like is the
+home), the verbs (open an app on a display, ask to become the default home,
+open the home-app settings), and two events (`HomeRequested`,
+`DefaultHomeChanged`). What the home screen looks like is the
 app's Blade. Android only; iOS has no replaceable home screen.
 
 Companions, both optional: [nativephp-screens](https://github.com/KevinBatdorf/nativephp-screens)
@@ -21,16 +22,16 @@ hides the gesture bar. The plugin has no code dependency on either.
 
 | Path | What lives there |
 |---|---|
-| `nativephp.json` | Bridge functions, the `HomeRequested` event, the `QUERY_ALL_PACKAGES` permission, `init_function`, `min_version` 30 |
+| `nativephp.json` | Bridge functions, the `HomeRequested` and `DefaultHomeChanged` events, the `QUERY_ALL_PACKAGES` permission, `init_function`, `min_version` 30 |
 | `resources/android/AndroidManifest.xml` | The two home activities. Declared in XML, not in `nativephp.json`, because the secondary one needs `android:taskAffinity` and the JSON schema has no such key |
 | `resources/android/src/LauncherHomeActivity.kt` | The resident home activity (HOME) and everything that keeps the app alive and in front |
 | `resources/android/src/LauncherSecondaryHomeActivity.kt` | Same class, own task affinity, answers SECONDARY_HOME |
-| `resources/android/src/LauncherApp.kt` | Tracks the live app Activity and which displays have a resident home; `registerLauncher(context)` is the plugin init |
-| `resources/android/src/LauncherEvents.kt` | Dispatches `HomeRequested` into PHP |
-| `resources/android/src/LauncherFunctions.kt` | `Apps`, `Open`, `IsDefaultHome`, `OpenHomeSettings` bridge functions |
+| `resources/android/src/LauncherApp.kt` | Tracks the live app Activity, which displays have a resident home, and the default home; `registerLauncher(context)` is the plugin init |
+| `resources/android/src/LauncherEvents.kt` | Dispatches `HomeRequested` and `DefaultHomeChanged` into PHP |
+| `resources/android/src/LauncherFunctions.kt` | `Apps`, `Open`, `IsDefaultHome`, `RequestHome`, `OpenHomeSettings` bridge functions |
 | `resources/ios/Sources/` | Stubs; every function answers unsupported |
 | `resources/js/Launcher.js` | One export per bridge function for SPA apps |
-| `src/` | PHP: `Launcher`, facade, `Events\HomeRequested`, `Concerns\IsHomeScreen`, the copy-assets hook command |
+| `src/` | PHP: `Launcher`, facade, `Events\HomeRequested`, `Events\DefaultHomeChanged`, `Concerns\IsHomeScreen`, the copy-assets hook command |
 | `tests/` | Pest; asserts the manifest, the XML activities and the Kotlin invariants below |
 
 ## Build and test
@@ -70,7 +71,8 @@ Launcher::apps();                                   // [['label', 'package', 'ac
 Launcher::open($package, ?$displayId, ?$activity);  // display = platform display id; activity = one of a package's entry points
 Launcher::isDefaultHome();                          // bool
 Launcher::currentHome();                            // package of the current default home, '' if unknown
-Launcher::openHomeSettings();                       // the only way to become the default: the user picks it
+Launcher::requestHome();                            // Android's "Set as default home app?" dialog; settings if already default
+Launcher::openHomeSettings();                       // the full home-app picker
 ```
 
 `apps()` writes each icon once to `filesDir/launcher-icons/<package>.png` and
@@ -81,11 +83,20 @@ on a device with many apps takes a moment; cache the result in the component.
 several launcher activities (AYANEO's tools, for one) all open the same one
 that way, so pass the `activity` from `apps()`.
 
-### Event
+`requestHome()` shows the dialog only while Android has a home role and the
+app does not hold it; otherwise it opens the same settings screen as
+`openHomeSettings()`. Once the user has denied it and ticked "Don't ask
+again", Android answers the request itself and no dialog shows, so keep a
+way to `openHomeSettings()` in the app too.
 
-`KevinBatdorf\Launcher\Events\HomeRequested(int $displayId)` fires whenever a
-display wants its home screen: HOME pressed there, the last app on it backed
-out of, its task removed. On the app's own display the plugin already brings
+### Events
+
+`KevinBatdorf\Launcher\Events\HomeRequested(int $displayId, bool $wasInFront = false)`
+fires whenever a display wants its home screen: HOME pressed there, the last
+app on it backed out of, its task removed. `$wasInFront` is true when that
+display already showed the app, so the press brought nothing back; a home
+screen can treat it like BACK. A listener that only takes `$displayId` keeps
+working: NativePHP binds payload keys to parameters by name. On the app's own display the plugin already brings
 the app forward; on any other display nothing happens unless the app acts.
 With the screens plugin the whole answer is:
 
@@ -96,6 +107,12 @@ public function homeRequested(int $displayId): void
     Screens::show($displayId);   // on the app's own display this brings the app forward too
 }
 ```
+
+`KevinBatdorf\Launcher\Events\DefaultHomeChanged(bool $isDefault)` fires
+when the app becomes, or stops being, the default home. It is checked each
+time the app resumes, so it follows the `requestHome()` dialog, the settings
+screen, and changes made anywhere else. It never fires at boot; read
+`isDefaultHome()` in `mount()`.
 
 ### Trait
 
@@ -133,6 +150,17 @@ the hard way on hardware.
   MainActivity instances alive in one process break the PHP runtime. After
   a finish or task removal the home waits (150 ms retries) until the old
   instance is destroyed, then boots.
+- **`wasInFront` is read when the press arrives, not from `isTaskRoot`.** HOME
+  from another app also stacks a home instance above the app, so a non-root
+  instance means nothing. A new instance asks whether the app's
+  `MainActivity` is on its display and at least `STARTED`: a press while the
+  app is in front pauses it, creates the home instance, and stops the app
+  only after that instance shows; from another app it was stopped long
+  before. A home already on top gets the press as `onNewIntent`
+  (`singleTop`) and was in front unless it was stopped, i.e. covered.
+- **The home-role dialog needs a start for result.** The role controller
+  names the requesting app from the calling package, which a plain
+  `startActivity` leaves empty; the dialog then closes at once.
 - **The secondary home has its own task affinity.** `RecentTasks` keeps one
   task per affinity and activity type: with the default affinity on both,
   creating the home on one display hid the other display's home task, and

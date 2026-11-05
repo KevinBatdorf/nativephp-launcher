@@ -2,6 +2,16 @@
 
 All notable changes to `kevinbatdorf/nativephp-launcher` are documented here.
 
+## Unreleased
+
+- `Launcher::requestHome()` shows Android's own "Set as default home app?"
+  dialog, or the home-app settings when the app already is the default.
+- `DefaultHomeChanged($isDefault)` fires when the app becomes, or stops
+  being, the default home.
+- `HomeRequested` carries `$wasInFront`: true when HOME was pressed while
+  that display already showed the app. Listeners taking only `$displayId`
+  keep working.
+
 ## 0.1.0 — 2026-09-20
 
 Initial release. Android only.

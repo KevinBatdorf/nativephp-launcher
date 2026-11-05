@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static bool open(string $package, ?int $display = null, ?string $activity = null)
  * @method static bool isDefaultHome()
  * @method static string currentHome()
+ * @method static bool requestHome()
  * @method static bool openHomeSettings()
  *
  * @see \KevinBatdorf\Launcher\Launcher

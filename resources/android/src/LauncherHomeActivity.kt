@@ -26,11 +26,23 @@ open class LauncherHomeActivity : Activity() {
 
     private var homeDisplay = Display.DEFAULT_DISPLAY
 
+    private var stopped = false
+
+    /** True when this display already showed the app as HOME was pressed. */
+    private var wasInFront = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         homeDisplay = displayId
         LauncherApp.homes.add(homeDisplay)
+        wasInFront = LauncherApp.inFrontOn(homeDisplay)
         Log.d(TAG, "resident on d$homeDisplay")
+    }
+
+    /** HOME while this home is on top; another app covering it would have stopped it. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        wasInFront = !stopped
     }
 
     override fun onDestroy() {
@@ -41,14 +53,21 @@ open class LauncherHomeActivity : Activity() {
     override fun onResume() {
         super.onResume()
         resumed = true
-        Log.d(TAG, "home requested on d$displayId")
+        stopped = false
+        Log.d(TAG, "home requested on d$displayId, in front: $wasInFront")
         requestHome()
     }
 
     override fun onPause() {
         super.onPause()
         resumed = false
+        wasInFront = false
         handler.removeCallbacksAndMessages(null)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        stopped = true
     }
 
     private fun requestHome() {
@@ -64,7 +83,7 @@ open class LauncherHomeActivity : Activity() {
                 handler.postDelayed({ if (resumed) requestHome() }, RETRY_MS)
             else -> {
                 if (app.display?.displayId == displayId) bringForward()
-                LauncherEvents.homeRequested(displayId)
+                LauncherEvents.homeRequested(displayId, wasInFront)
             }
         }
 

@@ -24,10 +24,10 @@ describe('Plugin Manifest', function () {
             ->and($this->manifest)->toHaveKeys(['bridge_functions', 'events', 'android', 'ios']);
     });
 
-    it('exposes the four launcher functions', function () {
+    it('exposes the five launcher functions', function () {
         $names = collect($this->manifest['bridge_functions'])->pluck('name')->sort()->values()->all();
 
-        expect($names)->toBe(['Launcher.Apps', 'Launcher.IsDefaultHome', 'Launcher.Open', 'Launcher.OpenHomeSettings']);
+        expect($names)->toBe(['Launcher.Apps', 'Launcher.IsDefaultHome', 'Launcher.Open', 'Launcher.OpenHomeSettings', 'Launcher.RequestHome']);
     });
 
     it('declares the home activities in XML, where taskAffinity is possible, not in nativephp.json', function () {
@@ -64,8 +64,11 @@ describe('Plugin Manifest', function () {
             ->and(file_get_contents($this->pluginPath.'/resources/android/src/LauncherEvents.kt'))->toContain('LauncherApp.live()');
     });
 
-    it('announces the HomeRequested event', function () {
-        expect($this->manifest['events'])->toBe(['KevinBatdorf\\Launcher\\Events\\HomeRequested']);
+    it('announces the HomeRequested and DefaultHomeChanged events', function () {
+        expect($this->manifest['events'])->toBe([
+            'KevinBatdorf\\Launcher\\Events\\HomeRequested',
+            'KevinBatdorf\\Launcher\\Events\\DefaultHomeChanged',
+        ]);
     });
 
     it('may query every package, or the app list is incomplete on Android 11+', function () {
@@ -126,6 +129,33 @@ describe('Native Code', function () {
             ->and($event)->toContain('public int $displayId');
     });
 
+    it('tells PHP whether the display already showed the app when HOME was pressed', function () {
+        $home = file_get_contents($this->pluginPath.'/resources/android/src/LauncherHomeActivity.kt');
+
+        expect($this->kotlin)->toContain('.put("wasInFront", wasInFront)')
+            ->and($home)->toContain('LauncherEvents.homeRequested(displayId, wasInFront)')
+            ->and($home)->toContain('wasInFront = LauncherApp.inFrontOn(homeDisplay)')
+            ->and($this->kotlin)->toContain('isAtLeast(Lifecycle.State.STARTED)')
+            ->and($home)->toContain('wasInFront = !stopped');
+    });
+
+    it('asks for the home role with a start for result, falling back to the settings screen', function () {
+        expect($this->kotlin)->toContain('roles.createRequestRoleIntent(RoleManager.ROLE_HOME)')
+            ->and($this->kotlin)->toContain('activity.startActivityForResult(intent, REQUEST_HOME_ROLE)')
+            ->and($this->kotlin)->toContain('roles.isRoleAvailable(RoleManager.ROLE_HOME) && !roles.isRoleHeld(RoleManager.ROLE_HOME)')
+            ->and($this->kotlin)->toContain('return OpenHomeSettings(activity).execute(parameters)');
+    });
+
+    it('reports a change of default home when the app resumes, matching the event class', function () {
+        $event = file_get_contents($this->pluginPath.'/src/Events/DefaultHomeChanged.php');
+
+        expect($this->kotlin)->toContain('KevinBatdorf\\\\Launcher\\\\Events\\\\DefaultHomeChanged')
+            ->and($this->kotlin)->toContain('put("isDefault", isDefault)')
+            ->and($this->kotlin)->toContain('if (activity !is MainActivity) return')
+            ->and($this->kotlin)->toContain('LauncherApp.watch(it)')
+            ->and($event)->toContain('public bool $isDefault');
+    });
+
     it('opens an app on the display it was asked for, by entry point when one is named', function () {
         expect($this->kotlin)->toContain('launchDisplayId = display')
             ->and($this->kotlin)->toContain('getLaunchIntentForPackage(pkg)')
@@ -155,6 +185,13 @@ describe('PHP', function () {
         expect($launcher->apps())->toBe([])
             ->and($launcher->open('com.example'))->toBeFalse()
             ->and($launcher->isDefaultHome())->toBeFalse()
-            ->and($launcher->currentHome())->toBe('');
+            ->and($launcher->currentHome())->toBe('')
+            ->and($launcher->requestHome())->toBeFalse();
+    });
+
+    it('keeps HomeRequested constructible from a display id alone', function () {
+        $event = file_get_contents($this->pluginPath.'/src/Events/HomeRequested.php');
+
+        expect($event)->toContain("public int \$displayId,\n        public bool \$wasInFront = false,");
     });
 });
