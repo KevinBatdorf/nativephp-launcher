@@ -16,7 +16,7 @@ internal object LauncherEvents {
 
     private const val SAME_PRESS_MS = 500L
 
-    private var lastInFront = -1 to 0L
+    private var lastPress = -1 to 0L
 
     /** False when no app instance is alive to hear it; the caller then boots one. */
     fun homeRequested(displayId: Int, wasInFront: Boolean): Boolean {
@@ -27,16 +27,14 @@ internal object LauncherEvents {
             return false
         }
 
-        // Where Android also stacks a home instance, it and the homekey broadcast report the same press.
-        if (wasInFront) {
-            val now = SystemClock.uptimeMillis()
-            if (lastInFront.first == displayId && now - lastInFront.second < SAME_PRESS_MS) {
-                Log.d(TAG, "home d$displayId dropped: same press as ${now - lastInFront.second} ms ago")
+        // One press reaches both a home instance Android stacks and the homekey broadcast.
+        val now = SystemClock.uptimeMillis()
+        if (lastPress.first == displayId && now - lastPress.second < SAME_PRESS_MS) {
+            Log.d(TAG, "home d$displayId dropped: same press as ${now - lastPress.second} ms ago")
 
-                return true
-            }
-            lastInFront = displayId to now
+            return true
         }
+        lastPress = displayId to now
 
         val payload = JSONObject().put("displayId", displayId).put("wasInFront", wasInFront).toString()
 

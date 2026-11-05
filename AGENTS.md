@@ -47,6 +47,16 @@ Kotlin errors do not fail that command — check
 `nativephp/android-build.log` for `^e: ` lines and that the app's
 `lastUpdateTime` in `dumpsys package` moved.
 
+The plugin logs at debug. Some devices ship a global INFO floor
+(`getprop log.tag` answers `I`), which discards every `Log.d` before it
+reaches logcat — the KONKR Pocket Advance does. Raise the plugin's tags
+first, or a capture comes back empty and reads like dead code:
+
+```bash
+adb shell setprop log.tag.LauncherApp D   # also LauncherHome, LauncherEvents; lost on reboot
+adb logcat -c && adb logcat -s LauncherApp:D LauncherHome:D LauncherEvents:D
+```
+
 Test-bench commands (never something an end user is asked to run):
 
 ```bash
@@ -98,8 +108,8 @@ display already showed the app, so the press brought nothing back; a home
 screen can treat it like BACK. A listener that only takes `$displayId` keeps
 working: NativePHP binds payload keys to parameters by name. Where Android
 brings the home task forward without a new home instance (the KONKR Pocket
-Advance), HOME from another app fires nothing on the app's display: the app
-is simply in front again. On the app's own display the plugin already brings
+Advance), HOME from another app reports `$wasInFront` false and the app is
+simply in front again, with nothing left for the listener to do. On the app's own display the plugin already brings
 the app forward; on any other display nothing happens unless the app acts.
 With the screens plugin the whole answer is:
 
@@ -147,10 +157,20 @@ the hard way on hardware.
   itself (`if (!isTaskRoot) finish()`). On the KONKR Pocket Advance Android
   only brings the home task forward, already in front, and no activity hears
   anything; the `CLOSE_SYSTEM_DIALOGS` broadcast with reason `homekey` is
-  the one signal, so a receiver fires the event when the app is the default,
-  sits in the main home task and has window focus (focus rules out HOME on
-  another display). Where both report one press, the second `wasInFront`
-  event for that display within 500 ms is dropped.
+  the one signal, so a receiver fires the event when the app is the default
+  and sits in the main home task. **Never ask `hasWindowFocus()` which
+  display the press was on.** It read as "pressed elsewhere" but a HOME
+  press starts the home transition and takes window focus off the activity
+  before the broadcast is delivered, on any device, so every press on the
+  app's own display was dropped 11 ms after it arrived. The broadcast names
+  no display and Android tells an app nothing about where a key went, so the
+  only sound answer is to use it where there is no ambiguity: the receiver
+  stands down when `LauncherApp.homes` holds more than one display, leaving
+  those presses to the home resident on each. `wasInFront` then comes from
+  the same lifecycle check a stacked home instance uses, so a press from
+  another app reports `false` instead of being dropped. Where both a stacked
+  instance and the broadcast report one press, the second event for that
+  display within 500 ms is dropped.
 - **App tasks outside the home task are removed.** `native:run`, adb and
   launcher icons start the app in a standard task, which is a swipeable
   card. On every home resume such tasks are finished and removed and the app

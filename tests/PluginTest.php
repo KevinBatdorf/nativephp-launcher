@@ -163,10 +163,24 @@ describe('Native Code', function () {
             ->and($this->kotlin)->toContain('intent.getStringExtra("reason") == "homekey"')
             ->and($this->kotlin)->toContain('Context.RECEIVER_NOT_EXPORTED')
             ->and($this->kotlin)->toContain('app.taskId != mainHomeTask || !context.isDefaultHome()')
-            ->and($this->kotlin)->toContain('if (!app.hasWindowFocus()) return')
-            ->and($this->kotlin)->toContain('wasInFront = true)')
             ->and($this->kotlin)->toContain('if (isTaskRoot && homeDisplay == Display.DEFAULT_DISPLAY) LauncherApp.mainHomeTask = taskId')
-            ->and($this->kotlin)->toContain('now - lastInFront.second < SAME_PRESS_MS');
+            ->and($this->kotlin)->toContain('now - lastPress.second < SAME_PRESS_MS');
+    });
+
+    it('never reads which display a press was on from window focus, which every press takes away', function () {
+        $app = file_get_contents($this->pluginPath.'/resources/android/src/LauncherApp.kt');
+
+        expect($app)->not->toContain('hasWindowFocus')
+            ->and($app)->toContain('if (homes.size > 1) return')
+            ->and($app)->toContain('val inFront = inFrontOn(display)')
+            ->and($app)->toContain('LauncherEvents.homeRequested(display, inFront)');
+    });
+
+    it('drops a second report of one press whether or not the app was in front', function () {
+        $events = file_get_contents($this->pluginPath.'/resources/android/src/LauncherEvents.kt');
+
+        expect($events)->toContain('lastPress = displayId to now')
+            ->and($events)->not->toContain('if (wasInFront) {');
     });
 
     it('asks for the home role with a start for result, falling back to the settings screen', function () {

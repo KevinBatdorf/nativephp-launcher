@@ -96,7 +96,6 @@ internal object LauncherApp {
     private fun watchHomeKey(application: Application) {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
-                Log.d(TAG, "close system dialogs: ${intent.getStringExtra("reason")}")
                 if (intent.getStringExtra("reason") == "homekey") homeKeyPressed(context)
             }
         }
@@ -110,21 +109,18 @@ internal object LauncherApp {
     }
 
     private fun homeKeyPressed(context: Context) {
-        val app = live()
-        Log.d(
-            TAG,
-            "homekey: live=${app?.javaClass?.simpleName} task=${app?.taskId} main=$mainHomeTask " +
-                "default=${context.isDefaultHome()} focus=${app?.hasWindowFocus()} " +
-                "finishing=${app?.isFinishing} dying=${app?.let { it in dying }} display=${app?.display?.displayId}",
-        )
+        val app = live() ?: return
 
-        if (app == null) return
         // Outside the home task, or while another app is the default, HOME starts a home activity itself.
         if (app.isFinishing || app in dying || app.taskId != mainHomeTask || !context.isDefaultHome()) return
-        // Without focus, HOME was pressed on another display.
-        if (!app.hasWindowFocus()) return
+        // The broadcast names no display, so trust it only where this app has one home.
+        if (homes.size > 1) return
 
-        LauncherEvents.homeRequested(app.display?.displayId ?: Display.DEFAULT_DISPLAY, wasInFront = true)
+        val display = app.display?.displayId ?: Display.DEFAULT_DISPLAY
+        val inFront = inFrontOn(display)
+        Log.d(TAG, "homekey on d$display, in front: $inFront")
+
+        LauncherEvents.homeRequested(display, inFront)
     }
 }
 
