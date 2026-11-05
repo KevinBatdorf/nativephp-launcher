@@ -11,6 +11,9 @@ All notable changes to `kevinbatdorf/nativephp-launcher` are documented here.
 - `HomeRequested` carries `$wasInFront`: true when HOME was pressed while
   that display already showed the app. Listeners taking only `$displayId`
   keep working.
+- Fixed: the first HOME after the app was started from outside (`native:run`,
+  another launcher) could start a second copy before the first had closed,
+  which shut the PHP runtime down.
 
 ## 0.1.0 — 2026-09-20
 

@@ -119,7 +119,25 @@ describe('Native Code', function () {
     it('removes app tasks outside the home task and waits for a dying instance before booting again', function () {
         expect($this->kotlin)->toContain('?.also { runCatching { task.finishAndRemoveTask() } }')
             ->and($this->kotlin)->toContain('if (app != null && appTask in strays) LauncherApp.dying.add(app)')
-            ->and($this->kotlin)->toContain('app.isFinishing || app in LauncherApp.dying ->');
+            ->and($this->kotlin)->toContain('app.isFinishing || app in LauncherApp.dying -> waitForDeath(app)');
+    });
+
+    it('gives up waiting on an instance that will not die, and shows it rather than a blank home', function () {
+        $home = file_get_contents($this->pluginPath.'/resources/android/src/LauncherHomeActivity.kt');
+
+        expect($home)->toContain('val quick = waits++ < QUICK_WAITS')
+            ->and($home)->toContain('if (!quick && app.display?.displayId == displayId) bringForward()')
+            ->and($home)->toContain('if (quick) RETRY_MS else SLOW_RETRY_MS')
+            ->and($home)->toContain('waits = 0')
+            ->and($home)->toContain('handler.removeCallbacksAndMessages(null)');
+    });
+
+    it('lets a destroyed instance go, and never crashes the app over a default it cannot report', function () {
+        $app = file_get_contents($this->pluginPath.'/resources/android/src/LauncherApp.kt');
+
+        expect($app)->toContain('if (activity === current) current = null')
+            ->and($app)->toContain('val host = activity as? FragmentActivity ?: return')
+            ->and($app)->not->toContain('as FragmentActivity');
     });
 
     it('tells PHP which display wants home, matching the event class', function () {

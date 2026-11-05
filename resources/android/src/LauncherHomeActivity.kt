@@ -28,6 +28,8 @@ open class LauncherHomeActivity : Activity() {
 
     private var stopped = false
 
+    private var waits = 0
+
     /** True when this display already showed the app as HOME was pressed. */
     private var wasInFront = false
 
@@ -55,6 +57,7 @@ open class LauncherHomeActivity : Activity() {
         super.onResume()
         resumed = true
         stopped = false
+        waits = 0
         Log.d(TAG, "home requested on d$displayId, in front: $wasInFront")
         requestHome()
     }
@@ -82,8 +85,7 @@ open class LauncherHomeActivity : Activity() {
         when {
             app == null -> boot()
             // Let a dying instance finish first: two app instances at once break the runtime.
-            app.isFinishing || app in LauncherApp.dying ->
-                handler.postDelayed({ if (resumed) requestHome() }, RETRY_MS)
+            app.isFinishing || app in LauncherApp.dying -> waitForDeath(app)
             else -> {
                 if (app.display?.displayId == displayId) bringForward()
                 LauncherEvents.homeRequested(displayId, wasInFront)
@@ -94,6 +96,14 @@ open class LauncherHomeActivity : Activity() {
 
         // A HOME press while the app is on top stacks a second instance; only the root stays.
         if (!isTaskRoot) finish()
+    }
+
+    /** An instance alive after the quick retries is stuck, not dying: spinning on it never ends. */
+    private fun waitForDeath(app: Activity) {
+        val quick = waits++ < QUICK_WAITS
+        if (!quick && app.display?.displayId == displayId) bringForward()
+
+        handler.postDelayed({ if (resumed) requestHome() }, if (quick) RETRY_MS else SLOW_RETRY_MS)
     }
 
     /** Whatever closes on another display then lands on our home, not on a lingering stock one. */
@@ -159,5 +169,9 @@ open class LauncherHomeActivity : Activity() {
         const val MAIN_ACTIVITY = "com.nativephp.mobile.ui.MainActivity"
 
         private const val RETRY_MS = 150L
+
+        private const val QUICK_WAITS = 20
+
+        private const val SLOW_RETRY_MS = 2_000L
     }
 }

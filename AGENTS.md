@@ -165,7 +165,10 @@ the hard way on hardware.
   reports `isFinishing` false and is gone from `getAppTasks()` before its
   destroy arrives, so the home keeps it in `LauncherApp.dying`; without that
   it booted a second instance and the old one's destroy shut the runtime
-  down.
+  down. The quick retries stop after 3 s: an instance still alive by then is
+  not dying but stuck in a task that would not go, so the home brings it
+  forward — a swipeable app beats a blank home screen — and keeps checking
+  every 2 s, until it dies or the home pauses.
 - **`wasInFront` is read when the press arrives, not from `isTaskRoot`.** Where
   HOME from another app stacks a home instance above the app too, a non-root
   instance means nothing. A new instance asks whether the app's
@@ -203,7 +206,8 @@ the hard way on hardware.
   in-process recreation the replaced instance dies after its successor
   started, leaving the holder null while the app runs. `LauncherApp.live()`
   is fed by the plugin `init_function`, which upstream calls on every
-  MainActivity creation.
+  MainActivity creation, and released again when that instance is destroyed,
+  so a dead one does not hold its view tree until the next boot.
 - **`Activity.display` is API 30**, hence `min_version` 30.
 
 ## Invariants for contributors

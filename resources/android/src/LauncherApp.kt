@@ -68,8 +68,16 @@ internal object LauncherApp {
                 val isDefault = activity.isDefaultHome()
                 if (isDefault == wasDefault) return
 
+                // A failed cast must not flip wasDefault, or the change is never reported.
+                val host = activity as? FragmentActivity ?: return
+
                 wasDefault = isDefault
-                LauncherEvents.defaultHomeChanged(activity as FragmentActivity, isDefault)
+                LauncherEvents.defaultHomeChanged(host, isDefault)
+            }
+
+            /** A destroyed instance would hold its whole view tree until the next boot replaced it. */
+            override fun onActivityDestroyed(activity: Activity) {
+                if (activity === current) current = null
             }
 
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
@@ -77,7 +85,6 @@ internal object LauncherApp {
             override fun onActivityPaused(activity: Activity) {}
             override fun onActivityStopped(activity: Activity) {}
             override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
-            override fun onActivityDestroyed(activity: Activity) {}
         })
     }
 
