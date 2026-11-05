@@ -72,14 +72,16 @@ open class LauncherHomeActivity : Activity() {
 
     private fun requestHome() {
         val app = LauncherApp.live()
+        val appTask = app?.taskId ?: -1
 
         // Recents never lists home tasks: anything listed here is a swipeable card started from outside.
         val strays = strayTaskIds()
+        if (app != null && appTask in strays) LauncherApp.dying.add(app)
 
         when {
             app == null -> boot()
             // Let a dying instance finish first: two app instances at once break the runtime.
-            app.isFinishing || app.taskId in strays ->
+            app.isFinishing || app in LauncherApp.dying ->
                 handler.postDelayed({ if (resumed) requestHome() }, RETRY_MS)
             else -> {
                 if (app.display?.displayId == displayId) bringForward()

@@ -145,11 +145,17 @@ the hard way on hardware.
   launcher icons start the app in a standard task, which is a swipeable
   card. On every home resume such tasks are finished and removed and the app
   rebooted into the home task. `ActivityManager.getAppTasks()` never lists
-  home tasks, so anything it lists is one of these.
+  home tasks, so anything it lists is one of these. This restarts the app
+  once, on the first HOME after such a launch (`native:run`, or opening the
+  app from another launcher before it became the default).
 - **Never start a second app instance while one is dying.** Two
   MainActivity instances alive in one process break the PHP runtime. After
   a finish or task removal the home waits (150 ms retries) until the old
-  instance is destroyed, then boots.
+  instance is destroyed, then boots. An instance whose task was removed
+  reports `isFinishing` false and is gone from `getAppTasks()` before its
+  destroy arrives, so the home keeps it in `LauncherApp.dying`; without that
+  it booted a second instance and the old one's destroy shut the runtime
+  down.
 - **`wasInFront` is read when the press arrives, not from `isTaskRoot`.** HOME
   from another app also stacks a home instance above the app, so a non-root
   instance means nothing. A new instance asks whether the app's

@@ -20,6 +20,10 @@ internal object LauncherApp {
 
     val homes: MutableSet<Int> = java.util.Collections.synchronizedSet(mutableSetOf<Int>())
 
+    /** An app in a removed task reports isFinishing only once its destroy arrives. */
+    val dying: MutableSet<Activity> =
+        java.util.Collections.synchronizedSet(java.util.Collections.newSetFromMap(java.util.WeakHashMap<Activity, Boolean>()))
+
     private val watching = AtomicBoolean(false)
 
     @Volatile

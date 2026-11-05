@@ -118,7 +118,8 @@ describe('Native Code', function () {
 
     it('removes app tasks outside the home task and waits for a dying instance before booting again', function () {
         expect($this->kotlin)->toContain('?.also { runCatching { task.finishAndRemoveTask() } }')
-            ->and($this->kotlin)->toContain('app.isFinishing || app.taskId in strays ->');
+            ->and($this->kotlin)->toContain('if (app != null && appTask in strays) LauncherApp.dying.add(app)')
+            ->and($this->kotlin)->toContain('app.isFinishing || app in LauncherApp.dying ->');
     });
 
     it('tells PHP which display wants home, matching the event class', function () {
