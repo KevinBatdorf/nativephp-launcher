@@ -21,6 +21,12 @@ enum LauncherFunctions {
         }
     }
 
+    class RequestHome: BridgeFunction {
+        func execute(parameters: [String: Any]) throws -> [String: Any] {
+            return BridgeResponse.error(code: "UNSUPPORTED", message: "iOS has no home screen setting")
+        }
+    }
+
     class OpenHomeSettings: BridgeFunction {
         func execute(parameters: [String: Any]) throws -> [String: Any] {
             return BridgeResponse.error(code: "UNSUPPORTED", message: "iOS has no home screen setting")

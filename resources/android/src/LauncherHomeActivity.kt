@@ -26,11 +26,26 @@ open class LauncherHomeActivity : Activity() {
 
     private var homeDisplay = Display.DEFAULT_DISPLAY
 
+    private var stopped = false
+
+    private var waits = 0
+
+    /** True when this display already showed the app as HOME was pressed. */
+    private var wasInFront = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         homeDisplay = displayId
         LauncherApp.homes.add(homeDisplay)
-        Log.d(TAG, "resident on d$homeDisplay")
+        if (isTaskRoot && homeDisplay == Display.DEFAULT_DISPLAY) LauncherApp.mainHomeTask = taskId
+        wasInFront = LauncherApp.inFrontOn(homeDisplay)
+        Log.d(TAG, "resident on d$homeDisplay, task $taskId, root $isTaskRoot, main home task ${LauncherApp.mainHomeTask}")
+    }
+
+    /** HOME while this home is on top; another app covering it would have stopped it. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        wasInFront = !stopped
     }
 
     override fun onDestroy() {
@@ -41,30 +56,39 @@ open class LauncherHomeActivity : Activity() {
     override fun onResume() {
         super.onResume()
         resumed = true
-        Log.d(TAG, "home requested on d$displayId")
+        stopped = false
+        waits = 0
+        Log.d(TAG, "home requested on d$displayId, in front: $wasInFront")
         requestHome()
     }
 
     override fun onPause() {
         super.onPause()
         resumed = false
+        wasInFront = false
         handler.removeCallbacksAndMessages(null)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        stopped = true
     }
 
     private fun requestHome() {
         val app = LauncherApp.live()
+        val appTask = app?.taskId ?: -1
 
         // Recents never lists home tasks: anything listed here is a swipeable card started from outside.
         val strays = strayTaskIds()
+        if (app != null && appTask in strays) LauncherApp.dying.add(app)
 
         when {
             app == null -> boot()
             // Let a dying instance finish first: two app instances at once break the runtime.
-            app.isFinishing || app.taskId in strays ->
-                handler.postDelayed({ if (resumed) requestHome() }, RETRY_MS)
+            app.isFinishing || app in LauncherApp.dying -> waitForDeath(app)
             else -> {
                 if (app.display?.displayId == displayId) bringForward()
-                LauncherEvents.homeRequested(displayId)
+                LauncherEvents.homeRequested(displayId, wasInFront)
             }
         }
 
@@ -72,6 +96,14 @@ open class LauncherHomeActivity : Activity() {
 
         // A HOME press while the app is on top stacks a second instance; only the root stays.
         if (!isTaskRoot) finish()
+    }
+
+    /** An instance alive after the quick retries is stuck, not dying: spinning on it never ends. */
+    private fun waitForDeath(app: Activity) {
+        val quick = waits++ < QUICK_WAITS
+        if (!quick && app.display?.displayId == displayId) bringForward()
+
+        handler.postDelayed({ if (resumed) requestHome() }, if (quick) RETRY_MS else SLOW_RETRY_MS)
     }
 
     /** Whatever closes on another display then lands on our home, not on a lingering stock one. */
@@ -137,5 +169,9 @@ open class LauncherHomeActivity : Activity() {
         const val MAIN_ACTIVITY = "com.nativephp.mobile.ui.MainActivity"
 
         private const val RETRY_MS = 150L
+
+        private const val QUICK_WAITS = 20
+
+        private const val SLOW_RETRY_MS = 2_000L
     }
 }

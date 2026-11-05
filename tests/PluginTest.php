@@ -24,10 +24,10 @@ describe('Plugin Manifest', function () {
             ->and($this->manifest)->toHaveKeys(['bridge_functions', 'events', 'android', 'ios']);
     });
 
-    it('exposes the four launcher functions', function () {
+    it('exposes the five launcher functions', function () {
         $names = collect($this->manifest['bridge_functions'])->pluck('name')->sort()->values()->all();
 
-        expect($names)->toBe(['Launcher.Apps', 'Launcher.IsDefaultHome', 'Launcher.Open', 'Launcher.OpenHomeSettings']);
+        expect($names)->toBe(['Launcher.Apps', 'Launcher.IsDefaultHome', 'Launcher.Open', 'Launcher.OpenHomeSettings', 'Launcher.RequestHome']);
     });
 
     it('declares the home activities in XML, where taskAffinity is possible, not in nativephp.json', function () {
@@ -64,8 +64,11 @@ describe('Plugin Manifest', function () {
             ->and(file_get_contents($this->pluginPath.'/resources/android/src/LauncherEvents.kt'))->toContain('LauncherApp.live()');
     });
 
-    it('announces the HomeRequested event', function () {
-        expect($this->manifest['events'])->toBe(['KevinBatdorf\\Launcher\\Events\\HomeRequested']);
+    it('announces the HomeRequested and DefaultHomeChanged events', function () {
+        expect($this->manifest['events'])->toBe([
+            'KevinBatdorf\\Launcher\\Events\\HomeRequested',
+            'KevinBatdorf\\Launcher\\Events\\DefaultHomeChanged',
+        ]);
     });
 
     it('may query every package, or the app list is incomplete on Android 11+', function () {
@@ -115,7 +118,26 @@ describe('Native Code', function () {
 
     it('removes app tasks outside the home task and waits for a dying instance before booting again', function () {
         expect($this->kotlin)->toContain('?.also { runCatching { task.finishAndRemoveTask() } }')
-            ->and($this->kotlin)->toContain('app.isFinishing || app.taskId in strays ->');
+            ->and($this->kotlin)->toContain('if (app != null && appTask in strays) LauncherApp.dying.add(app)')
+            ->and($this->kotlin)->toContain('app.isFinishing || app in LauncherApp.dying -> waitForDeath(app)');
+    });
+
+    it('gives up waiting on an instance that will not die, and shows it rather than a blank home', function () {
+        $home = file_get_contents($this->pluginPath.'/resources/android/src/LauncherHomeActivity.kt');
+
+        expect($home)->toContain('val quick = waits++ < QUICK_WAITS')
+            ->and($home)->toContain('if (!quick && app.display?.displayId == displayId) bringForward()')
+            ->and($home)->toContain('if (quick) RETRY_MS else SLOW_RETRY_MS')
+            ->and($home)->toContain('waits = 0')
+            ->and($home)->toContain('handler.removeCallbacksAndMessages(null)');
+    });
+
+    it('lets a destroyed instance go, and never crashes the app over a default it cannot report', function () {
+        $app = file_get_contents($this->pluginPath.'/resources/android/src/LauncherApp.kt');
+
+        expect($app)->toContain('if (activity === current) current = null')
+            ->and($app)->toContain('val host = activity as? FragmentActivity ?: return')
+            ->and($app)->not->toContain('as FragmentActivity');
     });
 
     it('tells PHP which display wants home, matching the event class', function () {
@@ -124,6 +146,58 @@ describe('Native Code', function () {
         expect($this->kotlin)->toContain('KevinBatdorf\\\\Launcher\\\\Events\\\\HomeRequested')
             ->and($this->kotlin)->toContain('put("displayId", displayId)')
             ->and($event)->toContain('public int $displayId');
+    });
+
+    it('tells PHP whether the display already showed the app when HOME was pressed', function () {
+        $home = file_get_contents($this->pluginPath.'/resources/android/src/LauncherHomeActivity.kt');
+
+        expect($this->kotlin)->toContain('.put("wasInFront", wasInFront)')
+            ->and($home)->toContain('LauncherEvents.homeRequested(displayId, wasInFront)')
+            ->and($home)->toContain('wasInFront = LauncherApp.inFrontOn(homeDisplay)')
+            ->and($this->kotlin)->toContain('isAtLeast(Lifecycle.State.STARTED)')
+            ->and($home)->toContain('wasInFront = !stopped');
+    });
+
+    it('hears HOME pressed with the app already on top of the home task, which no activity sees', function () {
+        expect($this->kotlin)->toContain('IntentFilter(Intent.ACTION_CLOSE_SYSTEM_DIALOGS)')
+            ->and($this->kotlin)->toContain('intent.getStringExtra("reason") == "homekey"')
+            ->and($this->kotlin)->toContain('Context.RECEIVER_NOT_EXPORTED')
+            ->and($this->kotlin)->toContain('app.taskId != mainHomeTask || !context.isDefaultHome()')
+            ->and($this->kotlin)->toContain('if (isTaskRoot && homeDisplay == Display.DEFAULT_DISPLAY) LauncherApp.mainHomeTask = taskId')
+            ->and($this->kotlin)->toContain('now - lastPress.second < SAME_PRESS_MS');
+    });
+
+    it('never reads which display a press was on from window focus, which every press takes away', function () {
+        $app = file_get_contents($this->pluginPath.'/resources/android/src/LauncherApp.kt');
+
+        expect($app)->not->toContain('hasWindowFocus')
+            ->and($app)->toContain('if (homes.size > 1) return')
+            ->and($app)->toContain('val inFront = inFrontOn(display)')
+            ->and($app)->toContain('LauncherEvents.homeRequested(display, inFront)');
+    });
+
+    it('drops a second report of one press whether or not the app was in front', function () {
+        $events = file_get_contents($this->pluginPath.'/resources/android/src/LauncherEvents.kt');
+
+        expect($events)->toContain('lastPress = displayId to now')
+            ->and($events)->not->toContain('if (wasInFront) {');
+    });
+
+    it('asks for the home role with a start for result, falling back to the settings screen', function () {
+        expect($this->kotlin)->toContain('roles.createRequestRoleIntent(RoleManager.ROLE_HOME)')
+            ->and($this->kotlin)->toContain('activity.startActivityForResult(intent, REQUEST_HOME_ROLE)')
+            ->and($this->kotlin)->toContain('roles.isRoleAvailable(RoleManager.ROLE_HOME) && !roles.isRoleHeld(RoleManager.ROLE_HOME)')
+            ->and($this->kotlin)->toContain('return OpenHomeSettings(activity).execute(parameters)');
+    });
+
+    it('reports a change of default home when the app resumes, matching the event class', function () {
+        $event = file_get_contents($this->pluginPath.'/src/Events/DefaultHomeChanged.php');
+
+        expect($this->kotlin)->toContain('KevinBatdorf\\\\Launcher\\\\Events\\\\DefaultHomeChanged')
+            ->and($this->kotlin)->toContain('put("isDefault", isDefault)')
+            ->and($this->kotlin)->toContain('if (activity !is MainActivity) return')
+            ->and($this->kotlin)->toContain('LauncherApp.watch(it)')
+            ->and($event)->toContain('public bool $isDefault');
     });
 
     it('opens an app on the display it was asked for, by entry point when one is named', function () {
@@ -155,6 +229,13 @@ describe('PHP', function () {
         expect($launcher->apps())->toBe([])
             ->and($launcher->open('com.example'))->toBeFalse()
             ->and($launcher->isDefaultHome())->toBeFalse()
-            ->and($launcher->currentHome())->toBe('');
+            ->and($launcher->currentHome())->toBe('')
+            ->and($launcher->requestHome())->toBeFalse();
+    });
+
+    it('keeps HomeRequested constructible from a display id alone', function () {
+        $event = file_get_contents($this->pluginPath.'/src/Events/HomeRequested.php');
+
+        expect($event)->toContain("public int \$displayId,\n        public bool \$wasInFront = false,");
     });
 });

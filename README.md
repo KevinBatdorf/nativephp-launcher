@@ -11,7 +11,7 @@ composer require kevinbatdorf/nativephp-launcher
 php artisan native:plugin:register kevinbatdorf/nativephp-launcher
 ```
 
-Requires NativePHP Mobile 4.5+ and Android 11+. Installing it makes your app show up in Android's home-app picker; only the user can pick it (Settings → Apps → Default apps → Home app), and `Launcher::openHomeSettings()` takes them there.
+Requires NativePHP Mobile 4.5+ and Android 11+. Installing it makes your app show up in Android's home-app picker; only the user can pick it. `Launcher::requestHome()` asks them in one tap with Android's own "Set as default home app?" dialog, and `Launcher::openHomeSettings()` opens the full picker (Settings → Apps → Default apps → Home app).
 
 ## A home screen in one screen
 
@@ -51,6 +51,39 @@ class HomeScreen extends NativeComponent
 
 Once the user makes your app the default home, HOME brings it forward, it never shows up in recents, and it comes straight back after being killed.
 
+## Becoming the default home
+
+```php
+#[On(DefaultHomeChanged::class)]
+public function defaultHomeChanged(bool $isDefault): void
+{
+    $this->isDefault = $isDefault;          // refresh a "Default home app" setting
+}
+
+public function makeDefault(): void
+{
+    Launcher::requestHome();                // Android's dialog; the picker if already default
+}
+```
+
+`DefaultHomeChanged` fires whenever your app comes back to the front and the answer has changed: after the dialog, after the settings screen, or after a change made anywhere else.
+
+## HOME inside your app
+
+HOME pressed while your app is already in front still fires `HomeRequested`, with `wasInFront: true`. Treat it like BACK, or scroll to the top:
+
+```php
+#[On(HomeRequested::class)]
+public function homeRequested(int $displayId, bool $wasInFront): void
+{
+    if ($wasInFront) {
+        $this->onBackPressed();             // with IsHomeScreen: pops a pushed screen, stays put at the root
+    }
+}
+```
+
+A press that brings your app back from another app never has `wasInFront: true`. Listeners that only take `$displayId` keep working.
+
 ## More than one display
 
 Pair it with [nativephp-screens](https://github.com/KevinBatdorf/nativephp-screens): your Blade puts a `<native:screen>` on each other display, `Launcher::open($package, $displayId)` opens an app on the display it was tapped on, and one handler keeps every display's home screen up:
@@ -70,8 +103,10 @@ Want the gesture bar gone too? [nativephp-fullscreen](https://github.com/KevinBa
 - **HOME on every display**: your app on its own display, whatever you render on the others.
 - **`Launcher::apps()`**: every launchable app with label, package, entry point and a PNG icon path for `<native:image>`.
 - **`Launcher::open($package, $display, $activity)`**: open an app, on a chosen display, by a chosen entry point.
+- **`Launcher::requestHome()`**: Android's own one-tap dialog to become the default home.
 - **`Launcher::isDefaultHome()`**, **`Launcher::currentHome()`**, **`Launcher::openHomeSettings()`**.
-- **`HomeRequested($displayId)`**: fired whenever a display wants its home screen — HOME pressed, last app backed out of or swiped away.
+- **`HomeRequested($displayId, $wasInFront)`**: fired whenever a display wants its home screen — HOME pressed, last app backed out of or swiped away. `$wasInFront` says the display already showed your app.
+- **`DefaultHomeChanged($isDefault)`**: fired when your app becomes, or stops being, the default home.
 - **`IsHomeScreen`**: a trait for the home screen component so BACK at the root does nothing.
 - A JavaScript export per function for Inertia/SPA apps: `resources/js/Launcher.js`.
 

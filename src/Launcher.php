@@ -48,6 +48,12 @@ class Launcher
         return (string) ($this->call('Launcher.IsDefaultHome', [])['current'] ?? '');
     }
 
+    /** Android's default-home dialog, or the settings picker when already default or unsupported. */
+    public function requestHome(): bool
+    {
+        return (bool) ($this->call('Launcher.RequestHome', [])['ok'] ?? false);
+    }
+
     /** Only the user can pick a home app; this opens the system screen for it. */
     public function openHomeSettings(): bool
     {

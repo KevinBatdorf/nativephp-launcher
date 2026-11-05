@@ -29,6 +29,15 @@
             ]
         },
         {
+            "name": "Launcher.RequestHome",
+            "android": "com.kevinbatdorf.plugins.launcher.LauncherFunctions.RequestHome",
+            "ios": "LauncherFunctions.RequestHome",
+            "description": "Ask the user to make this app the default home screen, in Android's own dialog",
+            "android_params": [
+                "activity"
+            ]
+        },
+        {
             "name": "Launcher.OpenHomeSettings",
             "android": "com.kevinbatdorf.plugins.launcher.LauncherFunctions.OpenHomeSettings",
             "ios": "LauncherFunctions.OpenHomeSettings",
@@ -39,7 +48,8 @@
         }
     ],
     "events": [
-        "KevinBatdorf\\Launcher\\Events\\HomeRequested"
+        "KevinBatdorf\\Launcher\\Events\\HomeRequested",
+        "KevinBatdorf\\Launcher\\Events\\DefaultHomeChanged"
     ],
     "android": {
         "permissions": [

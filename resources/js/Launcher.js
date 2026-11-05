@@ -32,6 +32,7 @@ export const Launcher = {
             ...(activity === null ? {} : { activity }),
         }))?.ok ?? false,
     isDefaultHome: async () => (await bridgeCall('Launcher.IsDefaultHome'))?.default ?? false,
+    requestHome: async () => (await bridgeCall('Launcher.RequestHome'))?.ok ?? false,
     openHomeSettings: async () => (await bridgeCall('Launcher.OpenHomeSettings'))?.ok ?? false,
 };
 

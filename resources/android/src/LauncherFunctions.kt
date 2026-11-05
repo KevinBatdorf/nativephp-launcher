@@ -1,6 +1,7 @@
 package com.kevinbatdorf.plugins.launcher
 
 import android.app.ActivityOptions
+import android.app.role.RoleManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
@@ -21,6 +22,8 @@ object LauncherFunctions {
     private const val TAG = "LauncherFunctions"
 
     private const val ICON_PX = 192
+
+    private const val REQUEST_HOME_ROLE = 0x4c48
 
     class Apps(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
@@ -110,15 +113,32 @@ object LauncherFunctions {
 
     class IsDefaultHome(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
-            val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-
-            @Suppress("DEPRECATION")
-            val current = activity.packageManager.resolveActivity(home, PackageManager.MATCH_DEFAULT_ONLY)
+            val current = activity.defaultHomePackage()
 
             return BridgeResponse.success(mapOf(
-                "default" to (current?.activityInfo?.packageName == activity.packageName),
-                "current" to (current?.activityInfo?.packageName ?: ""),
+                "default" to (current == activity.packageName),
+                "current" to (current ?: ""),
             ))
+        }
+    }
+
+    class RequestHome(private val activity: FragmentActivity) : BridgeFunction {
+        override fun execute(parameters: Map<String, Any>): Map<String, Any> {
+            val roles = activity.getSystemService(RoleManager::class.java)
+
+            if (roles != null && roles.isRoleAvailable(RoleManager.ROLE_HOME) && !roles.isRoleHeld(RoleManager.ROLE_HOME)) {
+                val intent = roles.createRequestRoleIntent(RoleManager.ROLE_HOME)
+
+                // A plain start leaves no calling package, and the role dialog closes at once.
+                @Suppress("DEPRECATION")
+                val shown = runCatching { activity.startActivityForResult(intent, REQUEST_HOME_ROLE) }
+                    .onFailure { Log.w(TAG, "no home role dialog: ${it.message}") }
+                    .isSuccess
+
+                if (shown) return BridgeResponse.success(mapOf("ok" to true))
+            }
+
+            return OpenHomeSettings(activity).execute(parameters)
         }
     }
 
