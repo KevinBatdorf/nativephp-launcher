@@ -39,7 +39,7 @@ open class LauncherHomeActivity : Activity() {
         LauncherApp.homes.add(homeDisplay)
         if (isTaskRoot && homeDisplay == Display.DEFAULT_DISPLAY) LauncherApp.mainHomeTask = taskId
         wasInFront = LauncherApp.inFrontOn(homeDisplay)
-        Log.d(TAG, "resident on d$homeDisplay")
+        Log.d(TAG, "resident on d$homeDisplay, task $taskId, root $isTaskRoot, main home task ${LauncherApp.mainHomeTask}")
     }
 
     /** HOME while this home is on top; another app covering it would have stopped it. */

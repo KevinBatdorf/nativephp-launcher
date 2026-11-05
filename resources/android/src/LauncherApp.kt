@@ -9,12 +9,15 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.Display
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import com.nativephp.mobile.ui.MainActivity
 import java.util.concurrent.atomic.AtomicBoolean
+
+private const val TAG = "LauncherApp"
 
 /** Upstream nulls its own holder when a replaced instance dies, after its successor started. */
 internal object LauncherApp {
@@ -93,6 +96,7 @@ internal object LauncherApp {
     private fun watchHomeKey(application: Application) {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
+                Log.d(TAG, "close system dialogs: ${intent.getStringExtra("reason")}")
                 if (intent.getStringExtra("reason") == "homekey") homeKeyPressed(context)
             }
         }
@@ -106,8 +110,15 @@ internal object LauncherApp {
     }
 
     private fun homeKeyPressed(context: Context) {
-        val app = live() ?: return
+        val app = live()
+        Log.d(
+            TAG,
+            "homekey: live=${app?.javaClass?.simpleName} task=${app?.taskId} main=$mainHomeTask " +
+                "default=${context.isDefaultHome()} focus=${app?.hasWindowFocus()} " +
+                "finishing=${app?.isFinishing} dying=${app?.let { it in dying }} display=${app?.display?.displayId}",
+        )
 
+        if (app == null) return
         // Outside the home task, or while another app is the default, HOME starts a home activity itself.
         if (app.isFinishing || app in dying || app.taskId != mainHomeTask || !context.isDefaultHome()) return
         // Without focus, HOME was pressed on another display.

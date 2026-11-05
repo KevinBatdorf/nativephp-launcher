@@ -20,12 +20,21 @@ internal object LauncherEvents {
 
     /** False when no app instance is alive to hear it; the caller then boots one. */
     fun homeRequested(displayId: Int, wasInFront: Boolean): Boolean {
-        val activity = LauncherApp.live() as? FragmentActivity ?: return false
+        val activity = LauncherApp.live() as? FragmentActivity
+        if (activity == null) {
+            Log.d(TAG, "home d$displayId: live() is ${LauncherApp.live()?.javaClass?.simpleName}, not a FragmentActivity")
+
+            return false
+        }
 
         // Where Android also stacks a home instance, it and the homekey broadcast report the same press.
         if (wasInFront) {
             val now = SystemClock.uptimeMillis()
-            if (lastInFront.first == displayId && now - lastInFront.second < SAME_PRESS_MS) return true
+            if (lastInFront.first == displayId && now - lastInFront.second < SAME_PRESS_MS) {
+                Log.d(TAG, "home d$displayId dropped: same press as ${now - lastInFront.second} ms ago")
+
+                return true
+            }
             lastInFront = displayId to now
         }
 
@@ -42,6 +51,7 @@ internal object LauncherEvents {
 
     private fun dispatch(activity: FragmentActivity, event: String, payload: String): Boolean =
         runCatching { NativeActionCoordinator.dispatchEvent(activity, event, payload) }
+            .onSuccess { Log.d(TAG, "$event handed to PHP: $payload") }
             .onFailure { Log.w(TAG, "$event not delivered: ${it.message}") }
             .isSuccess
 }
