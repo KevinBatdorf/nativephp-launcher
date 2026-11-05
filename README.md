@@ -82,7 +82,7 @@ public function homeRequested(int $displayId, bool $wasInFront): void
 }
 ```
 
-When HOME brings your app back from another app, `wasInFront` is false. Listeners that only take `$displayId` keep working.
+A press that brings your app back from another app never has `wasInFront: true`. Listeners that only take `$displayId` keep working.
 
 ## More than one display
 

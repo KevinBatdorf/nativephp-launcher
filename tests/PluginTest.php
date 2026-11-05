@@ -140,6 +140,17 @@ describe('Native Code', function () {
             ->and($home)->toContain('wasInFront = !stopped');
     });
 
+    it('hears HOME pressed with the app already on top of the home task, which no activity sees', function () {
+        expect($this->kotlin)->toContain('IntentFilter(Intent.ACTION_CLOSE_SYSTEM_DIALOGS)')
+            ->and($this->kotlin)->toContain('intent.getStringExtra("reason") == "homekey"')
+            ->and($this->kotlin)->toContain('Context.RECEIVER_NOT_EXPORTED')
+            ->and($this->kotlin)->toContain('app.taskId != mainHomeTask || !context.isDefaultHome()')
+            ->and($this->kotlin)->toContain('if (!app.hasWindowFocus()) return')
+            ->and($this->kotlin)->toContain('wasInFront = true)')
+            ->and($this->kotlin)->toContain('if (isTaskRoot && homeDisplay == Display.DEFAULT_DISPLAY) LauncherApp.mainHomeTask = taskId')
+            ->and($this->kotlin)->toContain('now - lastInFront.second < SAME_PRESS_MS');
+    });
+
     it('asks for the home role with a start for result, falling back to the settings screen', function () {
         expect($this->kotlin)->toContain('roles.createRequestRoleIntent(RoleManager.ROLE_HOME)')
             ->and($this->kotlin)->toContain('activity.startActivityForResult(intent, REQUEST_HOME_ROLE)')

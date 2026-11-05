@@ -35,6 +35,7 @@ open class LauncherHomeActivity : Activity() {
         super.onCreate(savedInstanceState)
         homeDisplay = displayId
         LauncherApp.homes.add(homeDisplay)
+        if (isTaskRoot && homeDisplay == Display.DEFAULT_DISPLAY) LauncherApp.mainHomeTask = taskId
         wasInFront = LauncherApp.inFrontOn(homeDisplay)
         Log.d(TAG, "resident on d$homeDisplay")
     }

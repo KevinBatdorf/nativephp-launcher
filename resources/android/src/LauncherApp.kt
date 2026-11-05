@@ -2,10 +2,14 @@ package com.kevinbatdorf.plugins.launcher
 
 import android.app.Activity
 import android.app.Application
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import android.view.Display
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -23,6 +27,9 @@ internal object LauncherApp {
     /** An app in a removed task reports isFinishing only once its destroy arrives. */
     val dying: MutableSet<Activity> =
         java.util.Collections.synchronizedSet(java.util.Collections.newSetFromMap(java.util.WeakHashMap<Activity, Boolean>()))
+
+    @Volatile
+    var mainHomeTask = -1
 
     private val watching = AtomicBoolean(false)
 
@@ -44,10 +51,15 @@ internal object LauncherApp {
         return started && app.display?.displayId == displayId
     }
 
-    /** Any change of default, by dialog, settings or elsewhere, ends with the app resuming. */
     fun watch(application: Application) {
         if (!watching.compareAndSet(false, true)) return
 
+        watchDefaultHome(application)
+        watchHomeKey(application)
+    }
+
+    /** Any change of default, by dialog, settings or elsewhere, ends with the app resuming. */
+    private fun watchDefaultHome(application: Application) {
         wasDefault = application.isDefaultHome()
         application.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
             override fun onActivityResumed(activity: Activity) {
@@ -67,6 +79,34 @@ internal object LauncherApp {
             override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
             override fun onActivityDestroyed(activity: Activity) {}
         })
+    }
+
+    /** HOME on a home task already in front with the app on top reaches no activity, only this broadcast. */
+    @Suppress("DEPRECATION")
+    private fun watchHomeKey(application: Application) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                if (intent.getStringExtra("reason") == "homekey") homeKeyPressed(context)
+            }
+        }
+        val filter = IntentFilter(Intent.ACTION_CLOSE_SYSTEM_DIALOGS)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            application.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            application.registerReceiver(receiver, filter)
+        }
+    }
+
+    private fun homeKeyPressed(context: Context) {
+        val app = live() ?: return
+
+        // Outside the home task, or while another app is the default, HOME starts a home activity itself.
+        if (app.isFinishing || app in dying || app.taskId != mainHomeTask || !context.isDefaultHome()) return
+        // Without focus, HOME was pressed on another display.
+        if (!app.hasWindowFocus()) return
+
+        LauncherEvents.homeRequested(app.display?.displayId ?: Display.DEFAULT_DISPLAY, wasInFront = true)
     }
 }
 

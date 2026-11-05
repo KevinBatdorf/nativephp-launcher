@@ -96,7 +96,10 @@ fires whenever a display wants its home screen: HOME pressed there, the last
 app on it backed out of, its task removed. `$wasInFront` is true when that
 display already showed the app, so the press brought nothing back; a home
 screen can treat it like BACK. A listener that only takes `$displayId` keeps
-working: NativePHP binds payload keys to parameters by name. On the app's own display the plugin already brings
+working: NativePHP binds payload keys to parameters by name. Where Android
+brings the home task forward without a new home instance (the KONKR Pocket
+Advance), HOME from another app fires nothing on the app's display: the app
+is simply in front again. On the app's own display the plugin already brings
 the app forward; on any other display nothing happens unless the app acts.
 With the screens plugin the whole answer is:
 
@@ -138,9 +141,16 @@ the hard way on hardware.
   swiped away; the flag `FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS` still shows the
   current task. Same package means same default task affinity, and a new
   ActivityRecord's type is undefined, so a plain `NEW_TASK` start from the
-  home activity joins its task. A HOME press while the app is on top lands a
-  second home instance above it; that one brings the app forward, fires the
-  event and finishes itself (`if (!isTaskRoot) finish()`).
+  home activity joins its task. What a HOME press does while the app is on
+  top differs by device. On the Thor it lands a second home instance above
+  the app, which brings the app forward, fires the event and finishes
+  itself (`if (!isTaskRoot) finish()`). On the KONKR Pocket Advance Android
+  only brings the home task forward, already in front, and no activity hears
+  anything; the `CLOSE_SYSTEM_DIALOGS` broadcast with reason `homekey` is
+  the one signal, so a receiver fires the event when the app is the default,
+  sits in the main home task and has window focus (focus rules out HOME on
+  another display). Where both report one press, the second `wasInFront`
+  event for that display within 500 ms is dropped.
 - **App tasks outside the home task are removed.** `native:run`, adb and
   launcher icons start the app in a standard task, which is a swipeable
   card. On every home resume such tasks are finished and removed and the app
@@ -156,8 +166,8 @@ the hard way on hardware.
   destroy arrives, so the home keeps it in `LauncherApp.dying`; without that
   it booted a second instance and the old one's destroy shut the runtime
   down.
-- **`wasInFront` is read when the press arrives, not from `isTaskRoot`.** HOME
-  from another app also stacks a home instance above the app, so a non-root
+- **`wasInFront` is read when the press arrives, not from `isTaskRoot`.** Where
+  HOME from another app stacks a home instance above the app too, a non-root
   instance means nothing. A new instance asks whether the app's
   `MainActivity` is on its display and at least `STARTED`: a press while the
   app is in front pauses it, creates the home instance, and stops the app
