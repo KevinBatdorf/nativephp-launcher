@@ -59,6 +59,32 @@ internal object LauncherApp {
 
         watchDefaultHome(application)
         watchHomeKey(application)
+        watchPackages(application)
+    }
+
+    /** An app list already on screen would otherwise miss an app installed or removed while it was open. */
+    private fun watchPackages(application: Application) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                // An update sends a removal and an add, both marked replacing; the add alone is enough.
+                val replacing = intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)
+                if (intent.action == Intent.ACTION_PACKAGE_REMOVED && replacing) return
+
+                LauncherEvents.appsChanged(intent.data?.schemeSpecificPart ?: "")
+            }
+        }
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_PACKAGE_ADDED)
+            addAction(Intent.ACTION_PACKAGE_REMOVED)
+            addAction(Intent.ACTION_PACKAGE_CHANGED)
+            addDataScheme("package")
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            application.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            application.registerReceiver(receiver, filter)
+        }
     }
 
     /** Any change of default, by dialog, settings or elsewhere, ends with the app resuming. */

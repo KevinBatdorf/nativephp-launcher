@@ -8,6 +8,9 @@ All notable changes to `kevinbatdorf/nativephp-launcher` are documented here.
   dialog, or the home-app settings when the app already is the default.
 - `DefaultHomeChanged($isDefault)` fires when the app becomes, or stops
   being, the default home.
+- `AppsChanged($package)` fires when an app is installed, updated, removed,
+  or has a component switched on or off, so an app list already on screen
+  can reload instead of waiting to be reopened.
 - `HomeRequested` carries `$wasInFront`: true when HOME was pressed while
   that display already showed the app. Listeners taking only `$displayId`
   keep working.

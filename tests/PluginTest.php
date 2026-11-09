@@ -64,11 +64,24 @@ describe('Plugin Manifest', function () {
             ->and(file_get_contents($this->pluginPath.'/resources/android/src/LauncherEvents.kt'))->toContain('LauncherApp.live()');
     });
 
-    it('announces the HomeRequested and DefaultHomeChanged events', function () {
+    it('announces the HomeRequested, DefaultHomeChanged and AppsChanged events', function () {
         expect($this->manifest['events'])->toBe([
             'KevinBatdorf\\Launcher\\Events\\HomeRequested',
             'KevinBatdorf\\Launcher\\Events\\DefaultHomeChanged',
+            'KevinBatdorf\\Launcher\\Events\\AppsChanged',
         ]);
+    });
+
+    it('reports installs, updates and removals once each, matching the event class', function () {
+        $event = file_get_contents($this->pluginPath.'/src/Events/AppsChanged.php');
+
+        expect($this->kotlin)->toContain('addAction(Intent.ACTION_PACKAGE_ADDED)')
+            ->and($this->kotlin)->toContain('addAction(Intent.ACTION_PACKAGE_REMOVED)')
+            ->and($this->kotlin)->toContain('addDataScheme("package")')
+            ->and($this->kotlin)->toContain('if (intent.action == Intent.ACTION_PACKAGE_REMOVED && replacing) return')
+            ->and($this->kotlin)->toContain('KevinBatdorf\\\\Launcher\\\\Events\\\\AppsChanged')
+            ->and($this->kotlin)->toContain('put("package", packageName)')
+            ->and($event)->toContain('public string $package');
     });
 
     it('may query every package, or the app list is incomplete on Android 11+', function () {

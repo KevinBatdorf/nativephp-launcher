@@ -14,6 +14,8 @@ internal object LauncherEvents {
 
     const val DEFAULT_HOME_CHANGED = "KevinBatdorf\\Launcher\\Events\\DefaultHomeChanged"
 
+    const val APPS_CHANGED = "KevinBatdorf\\Launcher\\Events\\AppsChanged"
+
     private const val SAME_PRESS_MS = 500L
 
     private var lastPress = -1 to 0L
@@ -45,6 +47,13 @@ internal object LauncherEvents {
         val payload = JSONObject().put("isDefault", isDefault).toString()
 
         return dispatch(activity, DEFAULT_HOME_CHANGED, payload)
+    }
+
+    fun appsChanged(packageName: String): Boolean {
+        val activity = LauncherApp.live() as? FragmentActivity ?: return false
+        val payload = JSONObject().put("package", packageName).toString()
+
+        return dispatch(activity, APPS_CHANGED, payload)
     }
 
     private fun dispatch(activity: FragmentActivity, event: String, payload: String): Boolean =

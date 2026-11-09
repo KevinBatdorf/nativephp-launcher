@@ -84,6 +84,18 @@ public function homeRequested(int $displayId, bool $wasInFront): void
 
 A press that brings your app back from another app never has `wasInFront: true`. Listeners that only take `$displayId` keep working.
 
+## Keeping an app list current
+
+`Launcher::apps()` answers for the moment it's called. To follow installs and removals while a list is open, reload on `AppsChanged`:
+
+```php
+#[On(AppsChanged::class)]
+public function appsChanged(string $package): void
+{
+    $this->apps = Launcher::apps();
+}
+```
+
 ## More than one display
 
 Pair it with [nativephp-screens](https://github.com/KevinBatdorf/nativephp-screens): your Blade puts a `<native:screen>` on each other display, `Launcher::open($package, $displayId)` opens an app on the display it was tapped on, and one handler keeps every display's home screen up:

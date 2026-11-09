@@ -49,7 +49,8 @@
     ],
     "events": [
         "KevinBatdorf\\Launcher\\Events\\HomeRequested",
-        "KevinBatdorf\\Launcher\\Events\\DefaultHomeChanged"
+        "KevinBatdorf\\Launcher\\Events\\DefaultHomeChanged",
+        "KevinBatdorf\\Launcher\\Events\\AppsChanged"
     ],
     "android": {
         "permissions": [
