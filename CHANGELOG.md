@@ -2,7 +2,7 @@
 
 All notable changes to `kevinbatdorf/nativephp-launcher` are documented here.
 
-## Unreleased
+## 0.2.0 — 2026-11-26
 
 - `Launcher::requestHome()` shows Android's own "Set as default home app?"
   dialog, or the home-app settings when the app already is the default.
