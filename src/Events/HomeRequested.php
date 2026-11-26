@@ -12,6 +12,8 @@ use Illuminate\Queue\SerializesModels;
  * On the display the app itself is on, the plugin already brings the app
  * forward. Elsewhere nothing happens unless the app acts; with the screens
  * plugin that is `Screens::show($displayId)`.
+ *
+ * `$wasInFront`: that display already showed the app, so the press brought nothing back.
  */
 class HomeRequested
 {
@@ -19,5 +21,6 @@ class HomeRequested
 
     public function __construct(
         public int $displayId,
+        public bool $wasInFront = false,
     ) {}
 }
